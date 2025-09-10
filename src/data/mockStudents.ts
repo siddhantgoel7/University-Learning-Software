@@ -1,3 +1,5 @@
+import type { Student } from '../types/students'
+
 export const students = [
     { id: 's1', name: 'Alice', gpa: 3.9 },
     { id: 's2', name: 'Bob', gpa: 3.2 },
