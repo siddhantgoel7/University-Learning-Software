@@ -1,27 +1,27 @@
 import React from 'react'
 import type { Course } from '../types/course'
-import { courses } from '../data/mockCourses'
-type CourseListProps = {
+
+type Props = {
   courses: Course[]
 }
 
-function CourseList({ courses }: CourseListProps) {
+const CourseList: React.FC<Props> = ({ courses }) => {
   return (
     <div className="mb-8">
       <h2 className="text-2xl font-semibold mb-4">Courses</h2>
-      <ul className="space-y-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {courses.map((course) => (
-          <li
+          <div
             key={course.id}
-            className="p-4 bg-white dark:bg-gray-800 rounded-xl shadow"
+            className="bg-white dark:bg-gray-800 shadow-md rounded-xl p-4 border border-gray-200 dark:border-gray-700"
           >
-            <p className="font-medium">{course.name}</p>
-            <p className="text-sm text-gray-500">
+            <h3 className="text-lg font-bold">{course.name}</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Instructor: {course.instructor}
             </p>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   )
 }
