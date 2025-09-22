@@ -1,62 +1,78 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
 
-export default function Login() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const { signInProfessor, signUpProfessor } = useAuth();
-  const navigate = useNavigate();
+type Role = "professor" | "student";
+type User = { id: string; name: string; email: string; role: Role };
+type AuthCtx = {
+  user: User | null;
+  signUpProfessor: (email: string, password: string, name: string) => Promise<string | null>;
+  signInProfessor: (email: string, password: string) => Promise<string | null>;
+  logout: () => Promise<void>;
+};
 
-  function submit() {
-    setError(null);
-    if (mode === "signin") {
-      const err = signInProfessor(email.trim(), password);
-      if (err) return setError(err);
-    } else {
-      if (!name.trim()) return setError("Please enter your name.");
-      const err = signUpProfessor(email.trim(), password, name.trim());
-      if (err) return setError(err);
-    }
-    navigate("/dashboard");
-  }
+const Ctx = createContext<AuthCtx | undefined>(undefined);
 
-  return (
-    <div className="min-h-screen grid place-items-center bg-gray-100 dark:bg-gray-900">
-      <div className="w-full max-w-sm bg-white dark:bg-gray-800 border rounded-xl p-6 shadow">
-        <h1 className="text-xl font-semibold mb-4">
-          {mode === "signin" ? "Professor Sign in" : "Professor Sign up"}
-        </h1>
+function mapUser(u: any | null): User | null {
+  if (!u) return null;
+  const meta = u.user_metadata || {};
+  return {
+    id: u.id,
+    email: u.email ?? "",
+    name: (meta.name as string) || u.email?.split("@")[0] || "Professor",
+    role: (meta.role as Role) || "professor",
+  };
+}
 
-        {mode === "signup" && (
-          <>
-            <label className="text-sm mb-1 block">Full name</label>
-            <input value={name} onChange={e=>setName(e.target.value)}
-              className="w-full border rounded px-3 py-2 mb-3 dark:bg-gray-700" />
-          </>
-        )}
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
 
-        <label className="text-sm mb-1 block">Email</label>
-        <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-          className="w-full border rounded px-3 py-2 mb-3 dark:bg-gray-700" />
+  useEffect(() => {
+    let mounted = true;
 
-        <label className="text-sm mb-1 block">Password</label>
-        <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
-          className="w-full border rounded px-3 py-2 mb-4 dark:bg-gray-700" />
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (mounted) setUser(mapUser(data.session?.user ?? null));
+    })();
 
-        {error && <div className="text-red-600 text-sm mb-3">{error}</div>}
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      setUser(mapUser(session?.user ?? null));
+    });
 
-        <button className="w-full bg-blue-600 text-white py-2 rounded mb-3" onClick={submit}>
-          {mode === "signin" ? "Sign in" : "Create account"}
-        </button>
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
-        <button className="w-full text-sm text-blue-600" onClick={() => setMode(mode==="signin" ? "signup" : "signin")}>
-          {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
-        </button>
-      </div>
-    </div>
-  );
+  const signUpProfessor = async (email: string, password: string, name: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name, role: "professor" } },
+    });
+    if (error) return error.message;
+
+    // For local env, sign-in usually succeeds immediately:
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInErr) console.warn("Post-signup sign-in failed:", signInErr.message);
+    return null;
+  };
+
+  const signInProfessor = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return error.message;
+    return null;
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  return <Ctx.Provider value={{ user, signUpProfessor, signInProfessor, logout }}>{children}</Ctx.Provider>;
+}
+
+export function useAuth() {
+  const v = useContext(Ctx);
+  if (!v) throw new Error("useAuth must be used within <AuthProvider>");
+  return v;
 }
