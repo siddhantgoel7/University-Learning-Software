@@ -28,7 +28,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (mounted) setUser(mapUser(data.session?.user ?? null));
@@ -52,7 +51,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     if (error) return error.message;
 
-    // For local env, sign-in usually succeeds immediately:
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
     if (signInErr) console.warn("Post-signup sign-in failed:", signInErr.message);
     return null;
